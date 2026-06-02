@@ -174,7 +174,11 @@ mod tests {
             goal: "More bookings".to_string(),
             target_customer: "Local families".to_string(),
             conversion_action: "Book consultation".to_string(),
-            pages: vec!["/".to_string(), "/pricing".to_string(), "/contact".to_string()],
+            pages: vec![
+                "/".to_string(),
+                "/pricing".to_string(),
+                "/contact".to_string(),
+            ],
             known_concerns: vec!["Slow mobile".to_string()],
             competitors: vec!["https://competitor.example".to_string()],
             created_at: "2026-06-02".to_string(),

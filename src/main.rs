@@ -1,0 +1,257 @@
+use std::io::{self, Write};
+
+use anyhow::{Context, Result};
+use auditkit::audit::{slugify, split_comma_list, AuditInput};
+use auditkit::html_check;
+use auditkit::lighthouse;
+use auditkit::report;
+use auditkit::security;
+use auditkit::ui;
+use auditkit::workspace::Workspace;
+use chrono::Local;
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(name = "ak", about = "Audit Kit: small agency website audit workflow")]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    New,
+    List,
+    Check {
+        target: String,
+        #[arg(long)]
+        save: Option<String>,
+    },
+    Security {
+        target: Option<String>,
+        #[arg(long)]
+        save: Option<String>,
+    },
+    Lighthouse {
+        target: Option<String>,
+        #[arg(long)]
+        save: Option<String>,
+    },
+    Inspect {
+        target: Option<String>,
+    },
+    Report {
+        target: Option<String>,
+    },
+}
+
+fn main() {
+    if let Err(error) = run() {
+        ui::error(error);
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<()> {
+    let cli = Cli::parse();
+    let workspace = Workspace::discover()?;
+
+    match cli.command {
+        Some(Command::New) => new_audit(&workspace),
+        Some(Command::List) => list_audits(&workspace),
+        Some(Command::Check { target, save }) => check(&workspace, &target, save.as_deref()),
+        Some(Command::Security { target, save }) => {
+            security_check(&workspace, target.as_deref(), save.as_deref())
+        }
+        Some(Command::Lighthouse { target, save }) => {
+            lighthouse_check(&workspace, target.as_deref(), save.as_deref())
+        }
+        Some(Command::Inspect { target }) => inspect(&workspace, target.as_deref()),
+        Some(Command::Report { target }) => generate_report(&workspace, target.as_deref()),
+        None => {
+            ui::help();
+            Ok(())
+        }
+    }
+}
+
+fn new_audit(workspace: &Workspace) -> Result<()> {
+    ui::section("New Audit");
+    let client_name = prompt("Client name            ")?;
+    let url = prompt("Website URL            ")?;
+    let business_type = prompt("Business type          ")?;
+    let goal = prompt("Primary goal           ")?;
+    let target_customer = prompt("Target customer        ")?;
+    let conversion_action = prompt("Main conversion action ")?;
+    let pages = prompt("Pages, comma-separated ")?;
+    let known_concerns = prompt("Known concerns         ")?;
+    let competitors = prompt("Competitors            ")?;
+
+    let audit = AuditInput {
+        slug: slugify(&client_name),
+        client_name,
+        url,
+        business_type,
+        goal,
+        target_customer,
+        conversion_action,
+        pages: split_comma_list(&pages),
+        known_concerns: split_comma_list(&known_concerns),
+        competitors: split_comma_list(&competitors),
+        created_at: Local::now().format("%Y-%m-%d").to_string(),
+    };
+
+    let folder = workspace.create_audit(&audit)?;
+    ui::section("Audit Created");
+    ui::saved(folder.display());
+    ui::bullet("Next: ak inspect latest");
+    ui::bullet("Then fill findings.md, scorecard.md, and pages/*.md");
+    Ok(())
+}
+
+fn list_audits(workspace: &Workspace) -> Result<()> {
+    ui::section("Audits");
+    let folders = workspace.list_audits()?;
+    if folders.is_empty() {
+        println!("No audits yet.");
+    } else {
+        for folder in folders {
+            ui::bullet(&folder);
+        }
+    }
+    Ok(())
+}
+
+fn check(workspace: &Workspace, target: &str, save: Option<&str>) -> Result<()> {
+    if looks_like_url(target) {
+        let result = ui::with_task("Fetching website and reading HTML", || {
+            html_check::check_url(target)
+        })?;
+        println!("{}", html_check::format_cli(&result));
+        if let Some(folder) = save {
+            let folder = workspace.resolve_target(Some(folder))?;
+            let path = workspace.write_audit_file(
+                &folder,
+                "automated-check.md",
+                &html_check::format_markdown(&result),
+            )?;
+            ui::saved(path.display());
+        }
+        return Ok(());
+    }
+
+    let folder = workspace.resolve_target(Some(target))?;
+    let website = audit_website(workspace, &folder)?;
+    let result = ui::with_task("Fetching website and reading HTML", || {
+        html_check::check_url(&website)
+    })?;
+    println!("{}", html_check::format_cli(&result));
+    let path = workspace.write_audit_file(
+        &folder,
+        "automated-check.md",
+        &html_check::format_markdown(&result),
+    )?;
+    ui::saved(path.display());
+    Ok(())
+}
+
+fn security_check(workspace: &Workspace, target: Option<&str>, save: Option<&str>) -> Result<()> {
+    let target = target.unwrap_or("latest");
+
+    if looks_like_url(target) {
+        let result = ui::with_task("Checking security headers", || security::check_url(target))?;
+        println!("{}", security::format_cli(&result));
+        if let Some(folder) = save {
+            let folder = workspace.resolve_target(Some(folder))?;
+            let path = workspace.write_audit_file(
+                &folder,
+                "security.md",
+                &security::format_markdown(&result),
+            )?;
+            ui::saved(path.display());
+        }
+        return Ok(());
+    }
+
+    let folder = workspace.resolve_target(Some(target))?;
+    let website = audit_website(workspace, &folder)?;
+    let result = ui::with_task("Checking security headers", || {
+        security::check_url(&website)
+    })?;
+    println!("{}", security::format_cli(&result));
+    let path =
+        workspace.write_audit_file(&folder, "security.md", &security::format_markdown(&result))?;
+    ui::saved(path.display());
+    Ok(())
+}
+
+fn lighthouse_check(workspace: &Workspace, target: Option<&str>, save: Option<&str>) -> Result<()> {
+    let target = target.unwrap_or("latest");
+
+    if looks_like_url(target) {
+        let output_folder = match save {
+            Some(folder) => Some(workspace.audit_folder(&workspace.resolve_target(Some(folder))?)),
+            None => None,
+        };
+        let paths = ui::with_task("Running Lighthouse in Helium", || {
+            lighthouse::run_lighthouse(&workspace.root, target, output_folder.as_deref())
+        })?;
+        ui::saved(paths.markdown_path.display());
+        ui::saved(paths.json_path.display());
+        return Ok(());
+    }
+
+    let folder = workspace.resolve_target(Some(target))?;
+    let website = audit_website(workspace, &folder)?;
+    let audit_folder = workspace.audit_folder(&folder);
+    let paths = ui::with_task("Running Lighthouse in Helium", || {
+        lighthouse::run_lighthouse(&workspace.root, &website, Some(&audit_folder))
+    })?;
+    ui::saved(paths.markdown_path.display());
+    ui::saved(paths.json_path.display());
+    Ok(())
+}
+
+fn inspect(workspace: &Workspace, target: Option<&str>) -> Result<()> {
+    let folder = workspace.resolve_target(target)?;
+    ui::section("Inspect");
+    ui::bullet(&format!("Running checks for {folder}"));
+    check(workspace, &folder, None)?;
+    security_check(workspace, Some(&folder), None)?;
+    lighthouse_check(workspace, Some(&folder), None)?;
+    Ok(())
+}
+
+fn generate_report(workspace: &Workspace, target: Option<&str>) -> Result<()> {
+    let folder = workspace.resolve_target(target)?;
+    let (report_path, email_path) =
+        ui::with_task("Building final report and client email", || {
+            report::generate_report(workspace, &folder)
+        })?;
+    ui::section("Report Generated");
+    ui::saved(report_path.display());
+    ui::saved(email_path.display());
+    Ok(())
+}
+
+fn audit_website(workspace: &Workspace, folder: &str) -> Result<String> {
+    let files = workspace.read_audit_files(folder)?;
+    let brief = files.get("brief.md").context("Missing brief.md")?;
+    let parsed = report::parse_brief(brief);
+    if parsed.website.is_empty() {
+        anyhow::bail!("No website found in {folder}/brief.md");
+    }
+    Ok(parsed.website)
+}
+
+fn looks_like_url(value: &str) -> bool {
+    value.starts_with("http://") || value.starts_with("https://") || value.contains('.')
+}
+
+fn prompt(label: &str) -> Result<String> {
+    print!("{label}");
+    io::stdout().flush()?;
+    let mut value = String::new();
+    io::stdin().read_line(&mut value)?;
+    Ok(value.trim().to_string())
+}

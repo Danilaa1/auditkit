@@ -4,22 +4,23 @@
   "type": "module",
   "private": true,
   "bin": {
-    "auditkit": "scripts/auditkit/index.mjs",
-    "ak": "scripts/auditkit/index.mjs"
+    "auditkit": "scripts/auditkit/ak",
+    "ak": "scripts/auditkit/ak"
   },
   "scripts": {
-    "audit": "node scripts/auditkit/index.mjs",
-    "audit:new": "node scripts/auditkit/index.mjs new",
-    "audit:list": "node scripts/auditkit/index.mjs list",
-    "audit:check": "node scripts/auditkit/index.mjs check",
-    "audit:report": "node scripts/auditkit/index.mjs report",
-    "audit:security": "node scripts/auditkit/index.mjs security",
-    "audit:lighthouse": "node scripts/auditkit/index.mjs lighthouse",
-    "audit:inspect": "node scripts/auditkit/index.mjs inspect",
-    "test": "node --test"
+    "audit": "cargo run --quiet --",
+    "audit:new": "cargo run --quiet -- new",
+    "audit:list": "cargo run --quiet -- list",
+    "audit:check": "cargo run --quiet -- check",
+    "audit:report": "cargo run --quiet -- report",
+    "audit:security": "cargo run --quiet -- security",
+    "audit:lighthouse": "cargo run --quiet -- lighthouse",
+    "audit:inspect": "cargo run --quiet -- inspect",
+    "test": "npm run test:node && npm run test:rust",
+    "test:node": "node --test",
+    "test:rust": "cargo test"
   },
   "dependencies": {
-    "@clack/prompts": "^1.5.0",
     "chrome-launcher": "^1.2.1",
     "lighthouse": "^13.3.0"
   }

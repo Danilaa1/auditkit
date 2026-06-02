@@ -1,16 +1,46 @@
 # Audit Kit
 
-Local CLI for creating structured website audit workspaces.
+Local hybrid CLI for agency website audits.
 
-## Commands
+Rust runs the core workflow: audit folders, quick HTML checks, security checks, and report generation. Node is used only for Lighthouse because Lighthouse is a Node tool.
 
-Install local terminal commands:
+## Install
+
+From this project folder:
 
 ```bash
+npm install
+cargo build
 npm link
 ```
 
-Then use:
+Prerequisites:
+
+- Rust toolchain with `cargo`
+- Node.js 24+
+- Helium, Chrome, Chromium, Brave, or Edge for Lighthouse
+
+## Basic Workflow
+
+```bash
+ak new
+ak inspect latest
+ak report latest
+```
+
+`ak new` creates a workspace in `audits/`. Fill in:
+
+- `findings.md`
+- `scorecard.md`
+- `pages/*.md`
+- `raw-notes.md`
+
+Then `ak report latest` creates:
+
+- `final-report.md`
+- `client-email.md`
+
+## Commands
 
 - `ak new` - create a new audit folder
 - `ak check latest` - run automated feedback for the latest audit and save it
@@ -33,7 +63,7 @@ Long form also works:
 - `auditkit report latest`
 - `auditkit list`
 
-NPM scripts still work:
+NPM scripts:
 
 - `npm run audit -- new` - create a new audit folder
 - `npm run audit -- check latest` - run automated feedback for the latest audit and save it
@@ -41,34 +71,6 @@ NPM scripts still work:
 - `npm run audit -- check <url> --save <audit-folder>` - fetch a website and save feedback into an audit
 - `npm run audit -- report latest` - generate `final-report.md` and `client-email.md`
 - `npm run audit -- list` - list existing audits
-
-Older aliases still work:
-
-- `npm run audit:new` - create a new audit folder
-- `npm run audit:list` - list existing audits
-- `npm run audit:check -- <url>` - fetch a website and print quick feedback
-
-Generated audits live in `audits/`.
-
-## Simplest Audit Flow
-
-```bash
-ak new
-ak inspect latest
-ak report latest
-```
-
-After `new`, fill in the generated files while reviewing the site:
-
-- `findings.md`
-- `scorecard.md`
-- `pages/*.md`
-- `raw-notes.md`
-
-Then run `report latest` to create:
-
-- `final-report.md`
-- `client-email.md`
 
 ## Quick Website Check
 
@@ -110,3 +112,25 @@ Override browser path when needed:
 ```bash
 AUDITKIT_BROWSER_PATH="/path/to/browser" ak lighthouse https://example.com
 ```
+
+## Development
+
+Run all tests:
+
+```bash
+npm test
+```
+
+Rust-only:
+
+```bash
+cargo test
+```
+
+Node Lighthouse helper only:
+
+```bash
+npm run test:node
+```
+
+Architecture notes live in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

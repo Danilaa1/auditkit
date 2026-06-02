@@ -1,0 +1,19 @@
+.DS_Store
+
+# Generated audit workspaces
+audits/*
+!audits/.gitkeep
+
+# Rust build output
+target/
+
+# Node dependencies
+node_modules/
+
+# One-off Lighthouse output
+lighthouse.md
+lighthouse.json
+
+# Local environment
+.env
+.env.*

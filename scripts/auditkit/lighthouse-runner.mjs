@@ -1,4 +1,3 @@
-import { bullet, color, formatKeyValue, scoreColor, section } from "./ui.mjs";
 import { existsSync } from "node:fs";
 
 const opportunityIds = [
@@ -25,6 +24,18 @@ const browserCandidates = [
   "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
   "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
 ];
+
+function section(title) {
+  return `\n== ${title} ==`;
+}
+
+function formatKeyValue(label, value) {
+  return `${label}: ${value}`;
+}
+
+function bullet(value) {
+  return `- ${value}`;
+}
 
 export function findBrowserPath({ env = process.env, config = {}, exists = existsSync } = {}) {
   const candidates = [
@@ -81,12 +92,10 @@ export function summarizeLighthouse(lhr) {
 }
 
 export function formatLighthouseCli(summary) {
-  const perfScore = summary.scores.performance ?? 0;
-
   return [
     section("Lighthouse Check"),
     formatKeyValue("URL", summary.url),
-    formatKeyValue("Performance", color(`${summary.scores.performance ?? "n/a"}/100`, scoreColor(perfScore))),
+    formatKeyValue("Performance", `${summary.scores.performance ?? "n/a"}/100`),
     formatKeyValue("Accessibility", `${summary.scores.accessibility ?? "n/a"}/100`),
     formatKeyValue("Best practices", `${summary.scores.bestPractices ?? "n/a"}/100`),
     formatKeyValue("SEO", `${summary.scores.seo ?? "n/a"}/100`),

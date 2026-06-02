@@ -45,18 +45,42 @@ fn first_capture(html: &str, pattern: &str) -> String {
 
 fn contains_cta(html: &str) -> bool {
     let text = strip_tags(html).to_lowercase();
-    ["book", "buy", "call", "contact", "demo", "enquire", "get started", "quote", "schedule", "start"]
-        .iter()
-        .any(|word| text.contains(word))
+    [
+        "book",
+        "buy",
+        "call",
+        "contact",
+        "demo",
+        "enquire",
+        "get started",
+        "quote",
+        "schedule",
+        "start",
+    ]
+    .iter()
+    .any(|word| text.contains(word))
+}
+
+fn tag_has_attribute(html: &str, tag_pattern: &str, required_parts: &[&str]) -> bool {
+    let tag_regex = Regex::new(tag_pattern).expect("valid regex");
+    let found = tag_regex.find_iter(html).any(|tag| {
+        let lower = tag.as_str().to_lowercase();
+        required_parts.iter().all(|part| lower.contains(part))
+    });
+    found
 }
 
 pub fn analyze_html(url: &str, html: &str, status: u16, bytes: usize) -> HtmlCheck {
     let title = first_capture(html, r"(?is)<title\b[^>]*>(.*?)</title>");
-    let meta_description_present = Regex::new(
-        r#"(?is)<meta\b(?=[^>]*\bname\s*=\s*["']description["'])(?=[^>]*\bcontent\s*=\s*["'][^"']*["'])[^>]*>"#,
-    )
-    .expect("valid regex")
-    .is_match(html);
+    let meta_description_present = tag_has_attribute(
+        html,
+        r#"(?is)<meta\b[^>]*>"#,
+        &["name=\"description\"", "content="],
+    ) || tag_has_attribute(
+        html,
+        r#"(?is)<meta\b[^>]*>"#,
+        &["name='description'", "content="],
+    );
     let h1_count = Regex::new(r"(?is)<h1\b[^>]*>.*?</h1>")
         .expect("valid regex")
         .find_iter(html)
@@ -71,12 +95,10 @@ pub fn analyze_html(url: &str, html: &str, status: u16, bytes: usize) -> HtmlChe
                 .is_match(image.as_str())
         })
         .count();
-    let has_viewport = Regex::new(r#"(?is)<meta\b(?=[^>]*\bname\s*=\s*["']viewport["'])[^>]*>"#)
-        .expect("valid regex")
-        .is_match(html);
-    let has_canonical = Regex::new(r#"(?is)<link\b(?=[^>]*\brel\s*=\s*["']canonical["'])[^>]*>"#)
-        .expect("valid regex")
-        .is_match(html);
+    let has_viewport = tag_has_attribute(html, r#"(?is)<meta\b[^>]*>"#, &["name=\"viewport\""])
+        || tag_has_attribute(html, r#"(?is)<meta\b[^>]*>"#, &["name='viewport'"]);
+    let has_canonical = tag_has_attribute(html, r#"(?is)<link\b[^>]*>"#, &["rel=\"canonical\""])
+        || tag_has_attribute(html, r#"(?is)<link\b[^>]*>"#, &["rel='canonical'"]);
     let has_cta = contains_cta(html);
 
     let mut score = 100;
@@ -84,17 +106,25 @@ pub fn analyze_html(url: &str, html: &str, status: u16, bytes: usize) -> HtmlChe
 
     if title.is_empty() {
         score -= 15;
-        feedback.push("Missing title tag. Add a clear page title for search results and browser tabs.".to_string());
+        feedback.push(
+            "Missing title tag. Add a clear page title for search results and browser tabs."
+                .to_string(),
+        );
     } else if title.len() < 10 || title.len() > 65 {
         score -= 8;
-        feedback.push(format!("Title length is {}. Aim for roughly 10-65 characters.", title.len()));
+        feedback.push(format!(
+            "Title length is {}. Aim for roughly 10-65 characters.",
+            title.len()
+        ));
     } else {
         feedback.push(format!("Title found: \"{title}\"."));
     }
 
     if !meta_description_present {
         score -= 12;
-        feedback.push("Missing meta description. Add a concise summary for search snippets.".to_string());
+        feedback.push(
+            "Missing meta description. Add a concise summary for search snippets.".to_string(),
+        );
     } else {
         feedback.push("Meta description found.".to_string());
     }
@@ -104,7 +134,9 @@ pub fn analyze_html(url: &str, html: &str, status: u16, bytes: usize) -> HtmlChe
         feedback.push("Missing H1. Add one clear primary heading.".to_string());
     } else if h1_count > 1 {
         score -= 8;
-        feedback.push(format!("Multiple H1 tags found ({h1_count}). Keep one primary page heading."));
+        feedback.push(format!(
+            "Multiple H1 tags found ({h1_count}). Keep one primary page heading."
+        ));
     } else {
         feedback.push("Single H1 found.".to_string());
     }
@@ -121,7 +153,8 @@ pub fn analyze_html(url: &str, html: &str, status: u16, bytes: usize) -> HtmlChe
 
     if !has_canonical {
         score -= 4;
-        feedback.push("No canonical link found. Add one if duplicate URLs are possible.".to_string());
+        feedback
+            .push("No canonical link found. Add one if duplicate URLs are possible.".to_string());
     }
 
     if !has_cta {
@@ -133,7 +166,10 @@ pub fn analyze_html(url: &str, html: &str, status: u16, bytes: usize) -> HtmlChe
 
     if bytes > 200_000 {
         score -= 7;
-        feedback.push("HTML response is large. Check unnecessary markup, scripts, or inline payloads.".to_string());
+        feedback.push(
+            "HTML response is large. Check unnecessary markup, scripts, or inline payloads."
+                .to_string(),
+        );
     }
 
     HtmlCheck {
