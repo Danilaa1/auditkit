@@ -2,6 +2,9 @@
 name = "auditkit"
 version = "0.1.0"
 edition = "2021"
+description = "Local hybrid CLI for agency website audits."
+license = "MIT"
+repository = "https://github.com/Danilaa1/auditkit"
 
 [dependencies]
 anyhow = "1.0"
