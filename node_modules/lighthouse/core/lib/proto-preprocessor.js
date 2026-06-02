@@ -1,0 +1,136 @@
+/**
+ * @license
+ * Copyright 2018 Google LLC
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import fs from 'fs';
+
+/**
+ * @fileoverview Helper functions to transform an LHR into a proto-ready LHR.
+ *
+ * FIXME: This file is 100% technical debt.  Our eventual goal is for the
+ * roundtrip JSON to match the Golden LHR 1:1.
+ */
+
+/**
+ * Transform an LHR into a proto-friendly, mostly-compatible LHR.
+ * @param {LH.Result} lhr
+ * @return {LH.Result}
+ */
+function processForProto(lhr) {
+  /** @type {LH.Result} */
+  const reportJson = JSON.parse(JSON.stringify(lhr));
+
+  // Drop these fields as we've omitted them from the proto for simplicity
+  if (reportJson.configSettings) {
+    // @ts-expect-error Removing non-optional field.
+    delete reportJson.configSettings.auditMode;
+    // @ts-expect-error Removing non-optional field.
+    delete reportJson.configSettings.gatherMode;
+  }
+
+  // Remove runtimeError if it is NO_ERROR
+  if (reportJson.runtimeError && reportJson.runtimeError.code === 'NO_ERROR') {
+    delete reportJson.runtimeError;
+  }
+
+  // Clean up actions that require 'audits' to exist
+  if (reportJson.audits) {
+    Object.keys(reportJson.audits).forEach(auditName => {
+      const audit = reportJson.audits[auditName];
+
+      // Rewrite 'not-applicable' and 'not_applicable' scoreDisplayMode to 'notApplicable'. #6201, #6783.
+      if (audit.scoreDisplayMode) {
+        // @ts-expect-error ts properly flags this as invalid as it should not happen,
+        // but remains in preprocessor to protect from proto translation errors from
+        // old LHRs.
+        // eslint-disable-next-line max-len
+        if (audit.scoreDisplayMode === 'not-applicable' || audit.scoreDisplayMode === 'not_applicable') {
+          audit.scoreDisplayMode = 'notApplicable';
+        }
+      }
+
+      // Normalize displayValue to always be a string, not an array. #6200
+      if (Array.isArray(audit.displayValue)) {
+        /** @type {Array<any>}*/
+        const values = [];
+        audit.displayValue.forEach(item => {
+          values.push(item);
+        });
+        audit.displayValue = values.join(' | ');
+      }
+    });
+  }
+
+  /**
+   * Execute `cb(obj, key)` on every object property where obj[key] is a string, recursively.
+   * @param {any} obj
+   * @param {(obj: Record<string, string>, key: string) => void} cb
+   */
+  function iterateStrings(obj, cb) {
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      Object.keys(obj).forEach(key => {
+        if (typeof obj[key] === 'string') {
+          cb(obj, key);
+        } else {
+          iterateStrings(obj[key], cb);
+        }
+      });
+    } else if (Array.isArray(obj)) {
+      obj.forEach(item => {
+        if (typeof item === 'object' || Array.isArray(item)) {
+          iterateStrings(item, cb);
+        }
+      });
+    }
+  }
+
+  iterateStrings(reportJson, (obj, key) => {
+    const value = obj[key];
+
+    // Remove empty strings, as they are dropped after round-tripping anyway.
+    if (value === '') {
+      delete obj[key];
+      return;
+    }
+
+    // Sanitize lone surrogates.
+    // @ts-expect-error node 20
+    if (String.prototype.isWellFormed && !value.isWellFormed()) {
+      // @ts-expect-error node 20
+      obj[key] = value.toWellFormed();
+    }
+  });
+
+  return reportJson;
+}
+
+// Test if called from the CLI or as a module.
+if (import.meta.main) {
+  // read in the argv for the input & output
+  const args = process.argv.slice(2);
+  let input;
+  let output;
+
+  if (args.length) {
+    // find can return undefined, so default it to '' with OR
+    input = (args.find(flag => flag.startsWith('--in')) || '').replace('--in=', '');
+    output = (args.find(flag => flag.startsWith('--out')) || '').replace('--out=', '');
+  }
+
+  if (input && output) {
+    // process the file
+    const report = processForProto(JSON.parse(fs.readFileSync(input, 'utf-8')));
+    // write to output from argv
+    fs.writeFileSync(output, JSON.stringify(report), 'utf-8');
+    // eslint-disable-next-line no-console
+    console.log(`file written to ${output}`);
+  } else {
+    process.exit(1);
+  }
+}
+
+export {
+  processForProto,
+};

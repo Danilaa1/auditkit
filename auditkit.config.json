@@ -1,0 +1,10 @@
+{
+  "agencyName": "Origin",
+  "auditorName": "Daniel White",
+  "defaultCurrency": "GBP",
+  "services": {
+    "audit": "Starting at £299",
+    "refresh": "Starting at £1,999",
+    "growth": "Starting at £499/mo"
+  }
+}

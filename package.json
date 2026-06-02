@@ -1,0 +1,26 @@
+{
+  "name": "auditkit",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "auditkit": "scripts/auditkit/index.mjs",
+    "ak": "scripts/auditkit/index.mjs"
+  },
+  "scripts": {
+    "audit": "node scripts/auditkit/index.mjs",
+    "audit:new": "node scripts/auditkit/index.mjs new",
+    "audit:list": "node scripts/auditkit/index.mjs list",
+    "audit:check": "node scripts/auditkit/index.mjs check",
+    "audit:report": "node scripts/auditkit/index.mjs report",
+    "audit:security": "node scripts/auditkit/index.mjs security",
+    "audit:lighthouse": "node scripts/auditkit/index.mjs lighthouse",
+    "audit:inspect": "node scripts/auditkit/index.mjs inspect",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.5.0",
+    "chrome-launcher": "^1.2.1",
+    "lighthouse": "^13.3.0"
+  }
+}
