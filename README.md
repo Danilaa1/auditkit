@@ -2,7 +2,7 @@
 
 Local hybrid CLI for agency website audits.
 
-Rust runs the core workflow: audit folders, quick HTML checks, security checks, and report generation. Node is used only for Lighthouse because Lighthouse is a Node tool.
+Rust runs the core workflow: audit folders, quick HTML checks, security checks, and report generation. Node is used only for Lighthouse.
 
 ## Install
 
