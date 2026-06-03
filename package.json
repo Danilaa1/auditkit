@@ -1,6 +1,6 @@
 {
   "name": "auditkit",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Local hybrid CLI for agency website audits.",
   "type": "module",
   "license": "MIT",
@@ -32,6 +32,7 @@
     "audit:security": "cargo run --quiet -- security",
     "audit:lighthouse": "cargo run --quiet -- lighthouse",
     "audit:inspect": "cargo run --quiet -- inspect",
+    "postinstall": "node scripts/auditkit/postinstall.mjs",
     "test": "npm run test:node && npm run test:rust",
     "test:node": "node --test",
     "test:rust": "cargo test"

@@ -100,7 +100,7 @@ pub fn build_final_report(
     files: &BTreeMap<String, String>,
 ) -> String {
     let brief = parse_brief(files.get("brief.md").map(String::as_str).unwrap_or(""));
-    let page_sections = files
+    let old_page_sections = files
         .iter()
         .filter(|(path, _)| path.starts_with("pages/") && path.ends_with(".md"))
         .map(|(path, content)| {
@@ -112,6 +112,9 @@ pub fn build_final_report(
         })
         .collect::<Vec<_>>()
         .join("\n\n");
+    let page_sections = workspace_section(files, "Page Reviews", "")
+        .filter(|content| !content.contains("No page reviews provided yet."))
+        .unwrap_or(old_page_sections);
 
     format!(
         "# {} Website Audit\n\nPrepared by {}, {}\nAudit folder: {}\n\n## Context\n\nWebsite: {}\nGoal: {}\nBusiness type: {}\nTarget customer: {}\nMain conversion action: {}\n\n## Scorecard\n\n{}\n\n## Automated Check\n\n{}\n\n## Security Check\n\n{}\n\n## Lighthouse Check\n\n{}\n\n## Findings\n\n{}\n\n## Page Reviews\n\n{}\n\n## Recommended Next Step\n\nAudit: {}\nRefresh: {}\nGrowth: {}\n\nUse the audit to prioritise immediate fixes. If most findings require design, copy, and frontend changes, the Refresh package is likely the best next step.\n",
@@ -124,10 +127,14 @@ pub fn build_final_report(
         empty_or(&brief.business_type, "Not specified"),
         empty_or(&brief.target_customer, "Not specified"),
         empty_or(&brief.conversion_action, "Not specified"),
-        section_file(files, "scorecard.md", "Not completed yet."),
-        section_file(files, "automated-check.md", "Not run yet."),
-        section_file(files, "security.md", "Not run yet."),
-        section_file(files, "lighthouse.md", "Not run yet."),
+        workspace_section(files, "Scorecard", "Not completed yet.")
+            .unwrap_or_else(|| section_file(files, "scorecard.md", "Not completed yet.")),
+        workspace_section(files, "Automated Check", "Not run yet.")
+            .unwrap_or_else(|| section_file(files, "automated-check.md", "Not run yet.")),
+        workspace_section(files, "Security Check", "Not run yet.")
+            .unwrap_or_else(|| section_file(files, "security.md", "Not run yet.")),
+        workspace_section(files, "Lighthouse Check", "Not run yet.")
+            .unwrap_or_else(|| section_file(files, "lighthouse.md", "Not run yet.")),
         section_file(files, "findings.md", "No findings captured yet."),
         if page_sections.is_empty() { "No page reviews captured yet.".to_string() } else { page_sections },
         config.audit_price,
@@ -164,6 +171,29 @@ fn section_file(files: &BTreeMap<String, String>, path: &str, fallback: &str) ->
         .map(|content| strip_title(content))
         .filter(|content| !content.is_empty())
         .unwrap_or_else(|| fallback.to_string())
+}
+
+fn workspace_section(
+    files: &BTreeMap<String, String>,
+    heading: &str,
+    fallback: &str,
+) -> Option<String> {
+    let workspace = files.get("workspace.md")?;
+    let heading = format!("## {heading}");
+    let lines = workspace.lines().collect::<Vec<_>>();
+    let start = lines.iter().position(|line| line.trim() == heading)? + 1;
+    let end = lines
+        .iter()
+        .enumerate()
+        .skip(start)
+        .find_map(|(index, line)| line.starts_with("## ").then_some(index))
+        .unwrap_or(lines.len());
+    let content = lines[start..end].join("\n").trim().to_string();
+    if content.is_empty() {
+        Some(fallback.to_string())
+    } else {
+        Some(content)
+    }
 }
 
 fn empty_or<'a>(value: &'a str, fallback: &'a str) -> &'a str {
@@ -246,5 +276,28 @@ mod tests {
         assert!(report.contains("Score: 50/100"));
         assert!(report.contains("## Lighthouse Check"));
         assert!(report.contains("### Homepage Review"));
+    }
+
+    #[test]
+    fn final_report_reads_consolidated_workspace_sections() {
+        let mut files = BTreeMap::new();
+        files.insert(
+            "brief.md".to_string(),
+            "# Acme Dental Audit Brief\n\nWebsite: https://example.com\nGoal: Leads".to_string(),
+        );
+        files.insert(
+            "workspace.md".to_string(),
+            "# Audit Workspace\n\n## Scorecard\n\nPerformance: 8/10\n\n## Automated Check\n\nScore: 74/100\n\n## Security Check\n\nScore: 50/100\n\n## Lighthouse Check\n\nPerformance: 87/100\n\n## Page Reviews\n\n### Homepage Review\n\nCTA needs work.\n".to_string(),
+        );
+        files.insert(
+            "findings.md".to_string(),
+            "# Findings\n\n## Critical".to_string(),
+        );
+
+        let report = build_final_report(&AgencyConfig::default(), "2026-acme", &files);
+        assert!(report.contains("Performance: 8/10"));
+        assert!(report.contains("Score: 74/100"));
+        assert!(report.contains("Performance: 87/100"));
+        assert!(report.contains("CTA needs work."));
     }
 }

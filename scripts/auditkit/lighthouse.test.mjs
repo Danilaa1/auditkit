@@ -5,6 +5,7 @@ import {
   formatLighthouseReport,
   summarizeLighthouse,
 } from "./lighthouse-runner.mjs";
+import { shouldShowWelcome, welcomeMessage } from "./postinstall.mjs";
 
 const lhr = {
   finalDisplayedUrl: "https://example.com/",
@@ -75,4 +76,20 @@ test("findBrowserPath falls back to Helium app path", () => {
     }),
     "/Applications/Helium.app/Contents/MacOS/Helium",
   );
+});
+
+test("postinstall welcome explains first commands", () => {
+  const message = welcomeMessage();
+  const plainMessage = welcomeMessage({ NO_COLOR: "1" });
+
+  assert.match(message, /Audit Kit/);
+  assert.match(message, /ak new/);
+  assert.match(message, /ak inspect latest/);
+  assert.match(message, /\x1b\[/);
+  assert.doesNotMatch(plainMessage, /\x1b\[/);
+  assert.match(plainMessage, /Audit Kit/);
+  assert.equal(shouldShowWelcome({}), true);
+  assert.equal(shouldShowWelcome({ CI: "true" }), false);
+  assert.equal(shouldShowWelcome({ AUDITKIT_SKIP_WELCOME: "1" }), false);
+  assert.equal(shouldShowWelcome({ npm_config_loglevel: "silent" }), false);
 });

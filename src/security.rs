@@ -1,7 +1,7 @@
 use anyhow::Result;
 use reqwest::header::HeaderMap;
 
-use crate::ui::score_status;
+use crate::ui::{self, score_status, FeedbackTone};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SecurityCheck {
@@ -119,7 +119,83 @@ pub fn check_url(input_url: &str) -> Result<SecurityCheck> {
 
 pub fn format_cli(result: &SecurityCheck) -> String {
     let mut output = format!(
-        "\n╭─ Security Check\n│ URL      {}\n│ Score    {}/100 ({})\n╰─ Signals\n  • HTTPS              {}\n  • HSTS               {}\n  • CSP                {}\n  • X-Frame-Options    {}\n  • Referrer-Policy    {}\n  • Secure cookies     {}\n\nFeedback\n",
+        "\n{}\n{} {}\n{} {}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n\n{}\n",
+        ui::frame_line("╭─ Security Check"),
+        ui::frame_line("│ URL  "),
+        result.url,
+        ui::frame_line("│ Score"),
+        ui::score_badge(result.score),
+        ui::frame_line("╰─ Signals"),
+        ui::signal_line(
+            "HTTPS",
+            yes_no(result.https),
+            if result.https {
+                FeedbackTone::Positive
+            } else {
+                FeedbackTone::Critical
+            }
+        ),
+        ui::signal_line(
+            "HSTS",
+            yes_no(result.hsts),
+            if result.hsts {
+                FeedbackTone::Positive
+            } else {
+                FeedbackTone::Warning
+            }
+        ),
+        ui::signal_line(
+            "CSP",
+            yes_no(result.csp),
+            if result.csp {
+                FeedbackTone::Positive
+            } else {
+                FeedbackTone::Critical
+            }
+        ),
+        ui::signal_line(
+            "X-Frame-Options",
+            yes_no(result.frame_options),
+            if result.frame_options {
+                FeedbackTone::Positive
+            } else {
+                FeedbackTone::Warning
+            }
+        ),
+        ui::signal_line(
+            "Referrer-Policy",
+            yes_no(result.referrer_policy),
+            if result.referrer_policy {
+                FeedbackTone::Positive
+            } else {
+                FeedbackTone::Warning
+            }
+        ),
+        ui::signal_line(
+            "Secure cookies",
+            yes_no(result.secure_cookies),
+            if result.secure_cookies {
+                FeedbackTone::Positive
+            } else {
+                FeedbackTone::Critical
+            }
+        ),
+        ui::frame_line("Feedback")
+    );
+
+    for item in &result.feedback {
+        output.push_str(&format!(
+            "{}\n",
+            ui::feedback_line(feedback_tone(item), item)
+        ));
+    }
+
+    output
+}
+
+pub fn format_markdown(result: &SecurityCheck) -> String {
+    let mut output = format!(
+        "# Security Check\n\nURL: {}\nScore: {}/100 ({})\n\n## Signals\n\n- HTTPS: {}\n- HSTS: {}\n- CSP: {}\n- X-Frame-Options: {}\n- Referrer-Policy: {}\n- Secure cookies: {}\n\n## Feedback\n\n",
         result.url,
         result.score,
         score_status(result.score),
@@ -138,15 +214,25 @@ pub fn format_cli(result: &SecurityCheck) -> String {
     output
 }
 
-pub fn format_markdown(result: &SecurityCheck) -> String {
-    format!("# Security Check\n\n{}\n", format_cli(result))
-}
-
 fn yes_no(value: bool) -> &'static str {
     if value {
         "yes"
     } else {
         "no"
+    }
+}
+
+fn feedback_tone(value: &str) -> FeedbackTone {
+    let value = value.to_lowercase();
+    if value.contains("not using https")
+        || value.contains("content-security-policy")
+        || value.contains("cookies are missing")
+    {
+        FeedbackTone::Critical
+    } else if value.starts_with("missing") {
+        FeedbackTone::Warning
+    } else {
+        FeedbackTone::Positive
     }
 }
 

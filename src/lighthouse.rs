@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 pub struct LighthousePaths {
     pub markdown_path: PathBuf,
     pub json_path: PathBuf,
+    pub cli_output: String,
 }
 
 pub fn run_lighthouse(
@@ -36,14 +37,16 @@ pub fn run_lighthouse(
         .map(PathBuf::from)
         .unwrap_or_else(|| output_folder.unwrap_or(root).join("lighthouse.json"));
 
-    for line in stdout.lines() {
-        if !line.contains("LIGHTHOUSE_MD:") && !line.contains("LIGHTHOUSE_JSON:") {
-            println!("{line}");
-        }
-    }
+    let cli_output = stdout
+        .lines()
+        .filter(|line| !line.contains("LIGHTHOUSE_MD:") && !line.contains("LIGHTHOUSE_JSON:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
     Ok(LighthousePaths {
         markdown_path,
         json_path,
+        cli_output,
     })
 }
 

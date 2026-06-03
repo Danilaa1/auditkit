@@ -36,45 +36,12 @@ fn title_case(value: &str) -> String {
         .join(" ")
 }
 
-fn page_file_name(page: &str) -> String {
-    let raw = if page == "/" {
-        "home".to_string()
-    } else {
-        page.trim_matches('/').to_string()
-    };
-
-    let mut slug = String::new();
-    let mut previous_dash = false;
-
-    for character in raw.chars() {
-        if character.is_ascii_alphanumeric() {
-            slug.push(character.to_ascii_lowercase());
-            previous_dash = false;
-        } else if !previous_dash {
-            slug.push('-');
-            previous_dash = true;
-        }
-    }
-
-    format!("pages/{}.md", slug.trim_matches('-'))
-}
-
 pub fn create_audit_files(audit: &AuditInput) -> BTreeMap<String, String> {
     let mut files = BTreeMap::new();
 
     files.insert("brief.md".to_string(), brief_template(audit));
-    files.insert("status.md".to_string(), status_template());
-    files.insert("scorecard.md".to_string(), scorecard_template());
-    files.insert("checklist.md".to_string(), checklist_template());
+    files.insert("workspace.md".to_string(), workspace_template(audit));
     files.insert("findings.md".to_string(), findings_template());
-    files.insert("report.md".to_string(), report_template(audit));
-    files.insert("video-script.md".to_string(), video_script_template(audit));
-    files.insert("links.md".to_string(), links_template(audit));
-    files.insert("raw-notes.md".to_string(), "# Raw Notes\n\n".to_string());
-
-    for page in &audit.pages {
-        files.insert(page_file_name(page), page_review_template(page));
-    }
 
     files
 }
@@ -95,45 +62,11 @@ pub fn brief_template(audit: &AuditInput) -> String {
     )
 }
 
-pub fn checklist_template() -> String {
-    "# Audit Checklist\n\n## Performance\n\n- [ ] Run PageSpeed on key pages\n- [ ] Check mobile score\n- [ ] Identify LCP element\n- [ ] Check image weight\n- [ ] Check font loading\n- [ ] Check layout shift\n\n## UX and Conversion\n\n- [ ] Above-fold offer is clear\n- [ ] Primary CTA is obvious\n- [ ] User can contact/book within 1 click\n- [ ] Trust signals are visible\n- [ ] Forms are short enough\n- [ ] Navigation supports key journey\n\n## SEO\n\n- [ ] Title tags\n- [ ] Meta descriptions\n- [ ] H1 structure\n- [ ] Internal links\n- [ ] Image alt text\n- [ ] Schema opportunity\n- [ ] Local SEO basics\n".to_string()
-}
-
 pub fn findings_template() -> String {
-    "# Findings\n\n## Finding Template\n\nTitle:\nCategory: Performance / UX / SEO / Conversion / Trust\nSeverity: Critical / High / Medium / Low\nPage:\nEvidence:\nWhy it matters:\nRecommendation:\nEstimated effort:\nBusiness impact:\nScreenshot/video note:\n\n## Critical\n\n### 1. Finding title\n\nEvidence:\n\nWhy it matters:\n\nRecommendation:\n\nEstimated effort:\n\nBusiness impact:\n\n## High\n\n## Medium\n\n## Low\n".to_string()
+    "# Findings\n\n## Critical\n\n## High\n\n## Medium\n\n## Low\n\n## Finding Template\n\nTitle:\nCategory: Performance / UX / SEO / Conversion / Trust\nSeverity: Critical / High / Medium / Low\nPage:\nEvidence:\nWhy it matters:\nRecommendation:\nEstimated effort:\nBusiness impact:\nScreenshot/video note:\n".to_string()
 }
 
-pub fn scorecard_template() -> String {
-    "# Scorecard\n\nPerformance: /10\nUX clarity: /10\nConversion path: /10\nSEO basics: /10\nTrust signals: /10\nMobile experience: /10\n\nOverall:\n\n## Notes\n\n".to_string()
-}
-
-pub fn status_template() -> String {
-    "# Audit Status\n\n- [ ] Intake complete\n- [ ] Pages reviewed\n- [ ] Performance checked\n- [ ] SEO checked\n- [ ] Findings prioritised\n- [ ] Report drafted\n- [ ] Video recorded\n- [ ] Sent to client\n".to_string()
-}
-
-pub fn page_review_template(page: &str) -> String {
-    format!(
-        "# {} Review\n\nPath: {}\n\n## First Impression\n\n## CTA\n\n## Copy Clarity\n\n## Visual Hierarchy\n\n## Mobile Issues\n\n## SEO Notes\n\n## Performance Notes\n\n## Recommended Fixes\n",
-        title_case(page),
-        page
-    )
-}
-
-pub fn report_template(audit: &AuditInput) -> String {
-    format!(
-        "# {} Website Audit\n\nWebsite: {}\nGoal: {}\n\n## Executive Summary\n\n## Priority Fixes\n\n1.\n2.\n3.\n\n## Performance\n\n## UX and Conversion\n\n## SEO\n\n## Recommended Next Step\n",
-        audit.client_name, audit.url, audit.goal
-    )
-}
-
-pub fn video_script_template(audit: &AuditInput) -> String {
-    format!(
-        "# {} Video Script\n\n## Opening\n\nWhat I reviewed and what matters most.\n\n## Biggest Conversion Issue\n\n## Performance Issue\n\n## SEO or Structure Issue\n\n## Close\n\nSummarise top 3 fixes and recommended next step.\n",
-        audit.client_name
-    )
-}
-
-pub fn links_template(audit: &AuditInput) -> String {
+pub fn workspace_template(audit: &AuditInput) -> String {
     let encoded = urlencoding(&audit.url);
     let pages = audit
         .pages
@@ -147,13 +80,27 @@ pub fn links_template(audit: &AuditInput) -> String {
         .collect::<Vec<_>>()
         .join("\n");
 
+    let page_reviews = audit
+        .pages
+        .iter()
+        .map(|page| {
+            format!(
+                "### {} Review\n\nPath: {}\n\nFirst impression:\n\nCTA:\n\nCopy clarity:\n\nVisual hierarchy:\n\nMobile issues:\n\nSEO notes:\n\nPerformance notes:\n\nRecommended fixes:\n",
+                title_case(page),
+                page
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
     format!(
-        "# Audit Links\n\n## Test Links\n\n- PageSpeed: https://pagespeed.web.dev/analysis?url={}\n- Rich Results: https://search.google.com/test/rich-results?url={}\n- Meta Preview: https://metatags.io/?url={}\n\n## Pages\n\n{}\n\n## Competitors\n\n{}\n",
+        "# Audit Workspace\n\n## Status\n\n- [ ] Intake complete\n- [ ] Pages reviewed\n- [ ] Performance checked\n- [ ] SEO checked\n- [ ] Findings prioritised\n- [ ] Report drafted\n- [ ] Video recorded\n- [ ] Sent to client\n\n## Scorecard\n\nPerformance: /10\nUX clarity: /10\nConversion path: /10\nSEO basics: /10\nTrust signals: /10\nMobile experience: /10\n\nOverall:\n\nNotes:\n\n## Review Checklist\n\n### Performance\n\n- [ ] Check mobile score\n- [ ] Identify LCP element\n- [ ] Check image weight\n- [ ] Check font loading\n- [ ] Check layout shift\n\n### UX and Conversion\n\n- [ ] Above-fold offer is clear\n- [ ] Primary CTA is obvious\n- [ ] User can contact/book within 1 click\n- [ ] Trust signals are visible\n- [ ] Forms are short enough\n- [ ] Navigation supports key journey\n\n### SEO\n\n- [ ] Title tags\n- [ ] Meta descriptions\n- [ ] H1 structure\n- [ ] Internal links\n- [ ] Image alt text\n- [ ] Schema opportunity\n- [ ] Local SEO basics\n\n## Test Links\n\n- PageSpeed: https://pagespeed.web.dev/analysis?url={}\n- Rich Results: https://search.google.com/test/rich-results?url={}\n- Meta Preview: https://metatags.io/?url={}\n\n## Pages To Review\n\n{}\n\n## Competitors\n\n{}\n\n## Automated Check\n\nNot run yet.\n\n## Security Check\n\nNot run yet.\n\n## Lighthouse Check\n\nNot run yet.\n\n## Page Reviews\n\n{}\n\n## Raw Notes\n\n",
         encoded,
         encoded,
         encoded,
         if pages.is_empty() { "- None provided".to_string() } else { pages },
-        markdown_list(&audit.competitors)
+        markdown_list(&audit.competitors),
+        if page_reviews.is_empty() { "No page reviews provided yet.".to_string() } else { page_reviews }
     )
 }
 
@@ -189,9 +136,11 @@ mod tests {
     fn create_audit_files_contains_expected_workspace() {
         let files = create_audit_files(&audit());
         assert!(files.contains_key("brief.md"));
-        assert!(files.contains_key("scorecard.md"));
-        assert!(files.contains_key("pages/home.md"));
-        assert!(files.contains_key("pages/pricing.md"));
+        assert!(files.contains_key("workspace.md"));
+        assert!(files.contains_key("findings.md"));
+        assert_eq!(files.len(), 3);
         assert!(files["brief.md"].contains("Business type: Dental clinic"));
+        assert!(files["workspace.md"].contains("### Homepage Review"));
+        assert!(files["workspace.md"].contains("## Automated Check"));
     }
 }

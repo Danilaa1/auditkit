@@ -25,16 +25,135 @@ const browserCandidates = [
   "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
 ];
 
-function section(title) {
-  return `\n== ${title} ==`;
+const colorEnabled = !process.env.NO_COLOR;
+
+function color(code, value) {
+  return colorEnabled ? `\x1b[${code}m${value}\x1b[0m` : value;
 }
 
-function formatKeyValue(label, value) {
-  return `${label}: ${value}`;
+function positive(value) {
+  return color("1;32", value);
 }
 
-function bullet(value) {
-  return `- ${value}`;
+function warning(value) {
+  return color("1;33", value);
+}
+
+function critical(value) {
+  return color("1;31", value);
+}
+
+function frame(value) {
+  return color("1;36", value);
+}
+
+function dim(value) {
+  return color("2", value);
+}
+
+function toneIcon(tone) {
+  if (tone === "positive") {
+    return positive("✓");
+  }
+
+  if (tone === "warning") {
+    return warning("◆");
+  }
+
+  return critical("●");
+}
+
+function scoreTone(score) {
+  if (typeof score !== "number") {
+    return "warning";
+  }
+
+  if (score >= 85) {
+    return "positive";
+  }
+
+  if (score >= 65) {
+    return "warning";
+  }
+
+  return "critical";
+}
+
+function numericMetric(value) {
+  const match = String(value).match(/[0-9]+(?:\.[0-9]+)?/);
+  return match ? Number(match[0]) : null;
+}
+
+function lcpTone(value) {
+  const metric = numericMetric(value);
+  if (metric === null) {
+    return "warning";
+  }
+
+  if (metric <= 2.5) {
+    return "positive";
+  }
+
+  if (metric <= 4) {
+    return "warning";
+  }
+
+  return "critical";
+}
+
+function clsTone(value) {
+  const metric = numericMetric(value);
+  if (metric === null) {
+    return "warning";
+  }
+
+  if (metric <= 0.1) {
+    return "positive";
+  }
+
+  if (metric <= 0.25) {
+    return "warning";
+  }
+
+  return "critical";
+}
+
+function tbtTone(value) {
+  const metric = numericMetric(value);
+  if (metric === null) {
+    return "warning";
+  }
+
+  if (metric <= 200) {
+    return "positive";
+  }
+
+  if (metric <= 600) {
+    return "warning";
+  }
+
+  return "critical";
+}
+
+function toneValue(tone, value) {
+  if (tone === "positive") {
+    return positive(value);
+  }
+
+  if (tone === "warning") {
+    return warning(value);
+  }
+
+  return critical(value);
+}
+
+function signalLine(label, value, tone) {
+  return `  ${toneIcon(tone)} ${dim(label.padEnd(21))} ${toneValue(tone, value)}`;
+}
+
+function feedbackLine(tone, value) {
+  const label = tone === "critical" ? critical("FIX") : warning("WATCH");
+  return `  ${toneIcon(tone)} ${label} ${toneValue(tone, value)}`;
 }
 
 export function findBrowserPath({ env = process.env, config = {}, exists = existsSync } = {}) {
@@ -92,21 +211,30 @@ export function summarizeLighthouse(lhr) {
 }
 
 export function formatLighthouseCli(summary) {
+  const opportunityLines = summary.opportunities.length
+    ? summary.opportunities.map((item) =>
+        feedbackLine(
+          item.score < 50 ? "critical" : "warning",
+          `${item.title}${item.displayValue ? ` — ${item.displayValue}` : ""}`,
+        ),
+      )
+    : [signalLine("Opportunities", "No major Lighthouse opportunities found.", "positive")];
+
   return [
-    section("Lighthouse Check"),
-    formatKeyValue("URL", summary.url),
-    formatKeyValue("Performance", `${summary.scores.performance ?? "n/a"}/100`),
-    formatKeyValue("Accessibility", `${summary.scores.accessibility ?? "n/a"}/100`),
-    formatKeyValue("Best practices", `${summary.scores.bestPractices ?? "n/a"}/100`),
-    formatKeyValue("SEO", `${summary.scores.seo ?? "n/a"}/100`),
-    section("Vitals"),
-    formatKeyValue("LCP", summary.vitals.lcp),
-    formatKeyValue("CLS", summary.vitals.cls),
-    formatKeyValue("TBT", summary.vitals.tbt),
-    section("Top Opportunities"),
-    ...(summary.opportunities.length
-      ? summary.opportunities.map((item) => bullet(`${item.title}${item.displayValue ? ` — ${item.displayValue}` : ""}`))
-      : [bullet("No major Lighthouse opportunities found.")]),
+    "",
+    frame("╭─ Lighthouse Check"),
+    `${frame("│ URL  ")} ${summary.url}`,
+    frame("╰─ Signals"),
+    signalLine("Performance", `${summary.scores.performance ?? "n/a"}/100`, scoreTone(summary.scores.performance)),
+    signalLine("Accessibility", `${summary.scores.accessibility ?? "n/a"}/100`, scoreTone(summary.scores.accessibility)),
+    signalLine("Best practices", `${summary.scores.bestPractices ?? "n/a"}/100`, scoreTone(summary.scores.bestPractices)),
+    signalLine("SEO", `${summary.scores.seo ?? "n/a"}/100`, scoreTone(summary.scores.seo)),
+    signalLine("LCP", summary.vitals.lcp, lcpTone(summary.vitals.lcp)),
+    signalLine("CLS", summary.vitals.cls, clsTone(summary.vitals.cls)),
+    signalLine("TBT", summary.vitals.tbt, tbtTone(summary.vitals.tbt)),
+    "",
+    frame("Feedback"),
+    ...opportunityLines,
   ].join("\n");
 }
 

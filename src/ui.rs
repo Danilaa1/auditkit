@@ -14,7 +14,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Gauge, Paragraph, Wrap},
+    widgets::{Block, Borders, Gauge, Paragraph},
     Frame, Terminal,
 };
 
@@ -28,6 +28,13 @@ pub struct NewAuditAnswers {
     pub pages: String,
     pub known_concerns: String,
     pub competitors: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FeedbackTone {
+    Positive,
+    Warning,
+    Critical,
 }
 
 pub fn section(title: &str) {
@@ -56,6 +63,52 @@ pub fn score_status(score: i32) -> &'static str {
     }
 }
 
+pub fn score_badge(score: i32) -> String {
+    let value = format!("{score}/100 ({})", score_status(score));
+    match score {
+        85..=100 => value.green().bold().to_string(),
+        65..=84 => value.yellow().bold().to_string(),
+        _ => value.red().bold().to_string(),
+    }
+}
+
+pub fn signal_line(label: &str, value: impl std::fmt::Display, tone: FeedbackTone) -> String {
+    let label = format!("{label:<21}").dimmed();
+    let value = value.to_string();
+    let value = match tone {
+        FeedbackTone::Positive => value.green().bold().to_string(),
+        FeedbackTone::Warning => value.yellow().bold().to_string(),
+        FeedbackTone::Critical => value.red().bold().to_string(),
+    };
+    format!("  {} {} {}", tone_icon(tone), label, value)
+}
+
+pub fn feedback_line(tone: FeedbackTone, value: &str) -> String {
+    let label = match tone {
+        FeedbackTone::Positive => "OK".green().bold().to_string(),
+        FeedbackTone::Warning => "WATCH".yellow().bold().to_string(),
+        FeedbackTone::Critical => "FIX".red().bold().to_string(),
+    };
+    let value = match tone {
+        FeedbackTone::Positive => value.dimmed().to_string(),
+        FeedbackTone::Warning => value.yellow().to_string(),
+        FeedbackTone::Critical => value.red().bold().to_string(),
+    };
+    format!("  {} {:<9} {}", tone_icon(tone), label, value)
+}
+
+pub fn frame_line(value: &str) -> String {
+    value.cyan().bold().to_string()
+}
+
+fn tone_icon(tone: FeedbackTone) -> String {
+    match tone {
+        FeedbackTone::Positive => "✓".green().bold().to_string(),
+        FeedbackTone::Warning => "◆".yellow().bold().to_string(),
+        FeedbackTone::Critical => "●".red().bold().to_string(),
+    }
+}
+
 pub fn with_task<T>(label: &str, task: impl FnOnce() -> Result<T>) -> Result<T> {
     let spinner = ProgressBar::new_spinner();
     spinner.set_style(
@@ -68,11 +121,13 @@ pub fn with_task<T>(label: &str, task: impl FnOnce() -> Result<T>) -> Result<T> 
 
     match task() {
         Ok(value) => {
-            spinner.finish_with_message(format!("{} {label}", "✓".green()));
+            spinner.finish_and_clear();
+            println!("{} {label}", "✓".green().bold());
             Ok(value)
         }
         Err(error) => {
-            spinner.finish_with_message(format!("{} {label}", "✕".red()));
+            spinner.finish_and_clear();
+            eprintln!("{} {label}", "✕".red().bold());
             Err(error)
         }
     }
@@ -194,7 +249,7 @@ fn draw_form(frame: &mut Frame, form: &AuditForm) {
             Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Min(19),
-            Constraint::Length(2),
+            Constraint::Length(4),
         ])
         .split(area);
 
@@ -226,72 +281,95 @@ fn draw_form(frame: &mut Frame, form: &AuditForm) {
         .count();
     let ratio = completed as f64 / form.fields.len() as f64;
     let gauge = Gauge::default()
-        .block(Block::default().borders(Borders::ALL).title(" Progress "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Progress: completed fields "),
+        )
         .gauge_style(Style::default().fg(Color::Cyan))
         .label(format!("{completed}/{} fields", form.fields.len()))
         .ratio(ratio);
     frame.render_widget(gauge, chunks[1]);
 
-    let field_constraints = vec![Constraint::Length(3); form.fields.len()];
-    let field_rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(field_constraints)
-        .split(chunks[2]);
+    let field_panel = Paragraph::new(field_lines(form)).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::DarkGray))
+            .title(" Fields "),
+    );
+    frame.render_widget(field_panel, chunks[2]);
 
-    for (index, field) in form.fields.iter().enumerate() {
-        if let Some(row) = field_rows.get(index) {
-            draw_field(frame, *row, form, field, index);
-        }
-    }
-
-    let footer = Paragraph::new(Line::from(vec![
-        Span::styled(
-            "Ready for production: ",
-            Style::default().fg(Color::DarkGray),
-        ),
-        Span::styled(
-            "structured brief, clean files, script-safe fallback",
-            Style::default().fg(Color::Gray),
-        ),
-    ]))
-    .alignment(Alignment::Center);
+    let active_field = &form.fields[form.active];
+    let required = if active_field.required {
+        Span::styled("Required", Style::default().fg(Color::Yellow))
+    } else {
+        Span::styled("Optional", Style::default().fg(Color::DarkGray))
+    };
+    let footer = Paragraph::new(vec![
+        Line::from(vec![
+            Span::styled("Field help: ", Style::default().fg(Color::Cyan)),
+            Span::styled(active_field.help, Style::default().fg(Color::Reset)),
+        ]),
+        Line::from(vec![
+            required,
+            Span::styled(
+                "  •  Progress fills when a field has any text",
+                Style::default().fg(Color::DarkGray),
+            ),
+        ]),
+    ])
+    .block(
+        Block::default()
+            .borders(Borders::TOP)
+            .border_style(Style::default().fg(Color::DarkGray)),
+    );
     frame.render_widget(footer, chunks[3]);
 }
 
-fn draw_field(frame: &mut Frame, area: Rect, form: &AuditForm, field: &FormField, index: usize) {
-    let active = index == form.active;
-    let pulse = ["◜", "◠", "◝", "◞", "◡", "◟"][form.tick % 6];
-    let border_color = if active { Color::Cyan } else { Color::DarkGray };
-    let title = if active {
-        format!(" {pulse} {} ", field.label)
-    } else {
-        format!(" {} ", field.label)
-    };
-    let text = if field.value.is_empty() {
-        Line::from(Span::styled(
-            field.placeholder,
-            Style::default().fg(Color::DarkGray),
-        ))
-    } else {
-        let cursor = if active && form.tick.is_multiple_of(2) {
-            "▌"
-        } else {
-            ""
-        };
-        Line::from(vec![
-            Span::styled(field.value.as_str(), Style::default().fg(Color::White)),
-            Span::styled(cursor, Style::default().fg(Color::Cyan)),
-        ])
-    };
-    let input = Paragraph::new(text)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(border_color))
-                .title(title),
-        )
-        .wrap(Wrap { trim: true });
-    frame.render_widget(input, area);
+fn field_lines(form: &AuditForm) -> Vec<Line<'_>> {
+    form.fields
+        .iter()
+        .enumerate()
+        .map(|(index, field)| {
+            let active = index == form.active;
+            let marker = if active { "▶" } else { " " };
+            let cursor = if active && (form.tick / 5).is_multiple_of(2) {
+                "▌"
+            } else {
+                ""
+            };
+            let label_style = if active {
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+            let value_style = if field.value.is_empty() {
+                Style::default().fg(Color::DarkGray)
+            } else if active {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD)
+            };
+            let value = if field.value.is_empty() {
+                field.placeholder
+            } else {
+                field.value.as_str()
+            };
+
+            Line::from(vec![
+                Span::styled(format!(" {marker} "), label_style),
+                Span::styled(format!("{:<24}", field.label), label_style),
+                Span::styled(value, value_style),
+                Span::styled(cursor, Style::default().fg(Color::Yellow)),
+            ])
+        })
+        .collect()
 }
 
 fn centered(area: Rect, max_width: u16, max_height: u16) -> Rect {
@@ -319,6 +397,8 @@ fn centered(area: Rect, max_width: u16, max_height: u16) -> Rect {
 struct FormField {
     label: &'static str,
     placeholder: &'static str,
+    help: &'static str,
+    required: bool,
     value: String,
 }
 
@@ -341,46 +421,64 @@ impl AuditForm {
                 FormField {
                     label: "Client name",
                     placeholder: "Acme Dental",
+                    help: "The client or business name used for the audit folder and report titles.",
+                    required: true,
                     value: String::new(),
                 },
                 FormField {
                     label: "Website URL",
                     placeholder: "https://example.com",
+                    help: "The website Audit Kit will inspect for HTML, security, and Lighthouse checks.",
+                    required: true,
                     value: String::new(),
                 },
                 FormField {
                     label: "Business type",
                     placeholder: "Local service business, SaaS, ecommerce...",
+                    help: "A short category that gives the final report useful business context.",
+                    required: false,
                     value: String::new(),
                 },
                 FormField {
                     label: "Primary goal",
                     placeholder: "More demo bookings, quote requests, sales...",
+                    help: "The main business outcome the website should improve.",
+                    required: false,
                     value: String::new(),
                 },
                 FormField {
                     label: "Target customer",
                     placeholder: "Who the site needs to persuade",
+                    help: "The buyer or audience the website needs to win over.",
+                    required: false,
                     value: String::new(),
                 },
                 FormField {
                     label: "Main conversion action",
                     placeholder: "Book a call, buy now, request a quote...",
+                    help: "The primary action visitors should take after reading the page.",
+                    required: false,
                     value: String::new(),
                 },
                 FormField {
                     label: "Pages",
                     placeholder: "/, /pricing, /contact",
+                    help: "Comma-separated page paths to create review templates for.",
+                    required: false,
                     value: String::new(),
                 },
                 FormField {
                     label: "Known concerns",
                     placeholder: "Slow site, weak offer, low conversions...",
+                    help: "Comma-separated issues the client already suspects or wants checked.",
+                    required: false,
                     value: String::new(),
                 },
                 FormField {
                     label: "Competitors",
                     placeholder: "competitor.com, anotherbrand.com",
+                    help: "Comma-separated competitor sites for context while writing findings.",
+                    required: false,
                     value: String::new(),
                 },
             ],

@@ -1,3 +1,5 @@
+use std::{fs, process};
+
 use anyhow::{Context, Result};
 use auditkit::audit::{slugify, split_comma_list, AuditInput};
 use auditkit::html_check;
@@ -94,7 +96,7 @@ fn new_audit(workspace: &Workspace) -> Result<()> {
     ui::section("Audit Created");
     ui::saved(folder.display());
     ui::bullet("Next: ak inspect latest");
-    ui::bullet("Then fill findings.md, scorecard.md, and pages/*.md");
+    ui::bullet("Then fill workspace.md and findings.md");
     Ok(())
 }
 
@@ -119,9 +121,9 @@ fn check(workspace: &Workspace, target: &str, save: Option<&str>) -> Result<()> 
         println!("{}", html_check::format_cli(&result));
         if let Some(folder) = save {
             let folder = workspace.resolve_target(Some(folder))?;
-            let path = workspace.write_audit_file(
+            let path = workspace.update_workspace_section(
                 &folder,
-                "automated-check.md",
+                "Automated Check",
                 &html_check::format_markdown(&result),
             )?;
             ui::saved(path.display());
@@ -135,9 +137,9 @@ fn check(workspace: &Workspace, target: &str, save: Option<&str>) -> Result<()> 
         html_check::check_url(&website)
     })?;
     println!("{}", html_check::format_cli(&result));
-    let path = workspace.write_audit_file(
+    let path = workspace.update_workspace_section(
         &folder,
-        "automated-check.md",
+        "Automated Check",
         &html_check::format_markdown(&result),
     )?;
     ui::saved(path.display());
@@ -152,9 +154,9 @@ fn security_check(workspace: &Workspace, target: Option<&str>, save: Option<&str
         println!("{}", security::format_cli(&result));
         if let Some(folder) = save {
             let folder = workspace.resolve_target(Some(folder))?;
-            let path = workspace.write_audit_file(
+            let path = workspace.update_workspace_section(
                 &folder,
-                "security.md",
+                "Security Check",
                 &security::format_markdown(&result),
             )?;
             ui::saved(path.display());
@@ -168,8 +170,11 @@ fn security_check(workspace: &Workspace, target: Option<&str>, save: Option<&str
         security::check_url(&website)
     })?;
     println!("{}", security::format_cli(&result));
-    let path =
-        workspace.write_audit_file(&folder, "security.md", &security::format_markdown(&result))?;
+    let path = workspace.update_workspace_section(
+        &folder,
+        "Security Check",
+        &security::format_markdown(&result),
+    )?;
     ui::saved(path.display());
     Ok(())
 }
@@ -178,27 +183,69 @@ fn lighthouse_check(workspace: &Workspace, target: Option<&str>, save: Option<&s
     let target = target.unwrap_or("latest");
 
     if looks_like_url(target) {
-        let output_folder = match save {
-            Some(folder) => Some(workspace.audit_folder(&workspace.resolve_target(Some(folder))?)),
-            None => None,
-        };
+        let save_folder = save
+            .map(|folder| workspace.resolve_target(Some(folder)))
+            .transpose()?;
+        let temp_dir = save_folder.as_ref().map(|_| lighthouse_temp_dir(workspace));
+        if let Some(folder) = &temp_dir {
+            fs::create_dir_all(folder)?;
+        }
         let paths = ui::with_task("Running Lighthouse in Helium", || {
-            lighthouse::run_lighthouse(&workspace.root, target, output_folder.as_deref())
+            lighthouse::run_lighthouse(&workspace.root, target, temp_dir.as_deref())
         })?;
-        ui::saved(paths.markdown_path.display());
-        ui::saved(paths.json_path.display());
+        print_lighthouse_output(&paths.cli_output);
+        if let Some(folder) = save_folder {
+            save_lighthouse_summary(workspace, &folder, &paths)?;
+        } else {
+            ui::saved(paths.markdown_path.display());
+            ui::saved(paths.json_path.display());
+        }
+        if let Some(folder) = temp_dir {
+            let _ = fs::remove_dir_all(folder);
+        }
         return Ok(());
     }
 
     let folder = workspace.resolve_target(Some(target))?;
     let website = audit_website(workspace, &folder)?;
-    let audit_folder = workspace.audit_folder(&folder);
+    let temp_dir = lighthouse_temp_dir(workspace);
+    fs::create_dir_all(&temp_dir)?;
     let paths = ui::with_task("Running Lighthouse in Helium", || {
-        lighthouse::run_lighthouse(&workspace.root, &website, Some(&audit_folder))
+        lighthouse::run_lighthouse(&workspace.root, &website, Some(&temp_dir))
     })?;
-    ui::saved(paths.markdown_path.display());
-    ui::saved(paths.json_path.display());
+    print_lighthouse_output(&paths.cli_output);
+    save_lighthouse_summary(workspace, &folder, &paths)?;
+    let _ = fs::remove_dir_all(temp_dir);
     Ok(())
+}
+
+fn print_lighthouse_output(output: &str) {
+    if !output.trim().is_empty() {
+        println!("{output}");
+    }
+}
+
+fn save_lighthouse_summary(
+    workspace: &Workspace,
+    folder: &str,
+    paths: &lighthouse::LighthousePaths,
+) -> Result<()> {
+    let markdown = fs::read_to_string(&paths.markdown_path)?;
+    let json = fs::read_to_string(&paths.json_path)?;
+    let workspace_path =
+        workspace.update_workspace_section(folder, "Lighthouse Check", &markdown)?;
+    let json_path = workspace.write_audit_file(folder, "raw/lighthouse.json", &json)?;
+    ui::saved(workspace_path.display());
+    ui::saved(json_path.display());
+    Ok(())
+}
+
+fn lighthouse_temp_dir(workspace: &Workspace) -> std::path::PathBuf {
+    workspace.root.join("target").join(format!(
+        "auditkit-lighthouse-{}-{}",
+        process::id(),
+        Local::now().timestamp_millis()
+    ))
 }
 
 fn inspect(workspace: &Workspace, target: Option<&str>) -> Result<()> {

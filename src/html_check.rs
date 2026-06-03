@@ -1,7 +1,7 @@
 use anyhow::Result;
 use regex::Regex;
 
-use crate::ui::score_status;
+use crate::ui::{self, score_status, FeedbackTone};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HtmlCheck {
@@ -201,13 +201,65 @@ pub fn check_url(input_url: &str) -> Result<HtmlCheck> {
 
 pub fn format_cli(result: &HtmlCheck) -> String {
     let mut output = format!(
-        "\n╭─ Audit Kit Check\n│ URL      {}\n│ Score    {}/100 ({})\n╰─ Signals\n  • Status               {}\n  • Response             {} bytes\n  • Title                {}\n  • Meta description     {}\n  • H1 count             {}\n  • Images missing alt   {}/{}\n\nFeedback\n",
+        "\n{}\n{} {}\n{} {}\n{}\n{}\n{}\n{}\n{}\n{}\n{}\n\n{}\n",
+        ui::frame_line("╭─ Audit Kit Check"),
+        ui::frame_line("│ URL  "),
+        result.url,
+        ui::frame_line("│ Score"),
+        ui::score_badge(result.score),
+        ui::frame_line("╰─ Signals"),
+        ui::signal_line("Status", result.status, status_tone(result.status)),
+        ui::signal_line(
+            "Response",
+            format!("{} bytes", result.bytes),
+            response_tone(result.bytes)
+        ),
+        ui::signal_line("Title", title_value(result), title_tone(result)),
+        ui::signal_line(
+            "Meta description",
+            if result.meta_description_present {
+                "present"
+            } else {
+                "missing"
+            },
+            if result.meta_description_present {
+                FeedbackTone::Positive
+            } else {
+                FeedbackTone::Critical
+            }
+        ),
+        ui::signal_line("H1 count", result.h1_count, h1_tone(result.h1_count)),
+        ui::signal_line(
+            "Images missing alt",
+            format!("{}/{}", result.image_missing_alt, result.image_total),
+            if result.image_missing_alt == 0 {
+                FeedbackTone::Positive
+            } else {
+                FeedbackTone::Critical
+            }
+        ),
+        ui::frame_line("Feedback")
+    );
+
+    for item in &result.feedback {
+        output.push_str(&format!(
+            "{}\n",
+            ui::feedback_line(feedback_tone(item), item)
+        ));
+    }
+
+    output
+}
+
+pub fn format_markdown(result: &HtmlCheck) -> String {
+    let mut output = format!(
+        "# Automated Check\n\nURL: {}\nScore: {}/100 ({})\n\n## Signals\n\n- Status: {}\n- Response: {} bytes\n- Title: {}\n- Meta description: {}\n- H1 count: {}\n- Images missing alt: {}/{}\n\n## Feedback\n\n",
         result.url,
         result.score,
         score_status(result.score),
         result.status,
         result.bytes,
-        if result.title.is_empty() { "missing" } else { &result.title },
+        title_value(result),
         if result.meta_description_present { "present" } else { "missing" },
         result.h1_count,
         result.image_missing_alt,
@@ -221,8 +273,64 @@ pub fn format_cli(result: &HtmlCheck) -> String {
     output
 }
 
-pub fn format_markdown(result: &HtmlCheck) -> String {
-    format!("# Automated Check\n\n{}\n", format_cli(result))
+fn title_value(result: &HtmlCheck) -> &str {
+    if result.title.is_empty() {
+        "missing"
+    } else {
+        &result.title
+    }
+}
+
+fn status_tone(status: u16) -> FeedbackTone {
+    if (200..400).contains(&status) {
+        FeedbackTone::Positive
+    } else {
+        FeedbackTone::Critical
+    }
+}
+
+fn response_tone(bytes: usize) -> FeedbackTone {
+    if bytes > 200_000 {
+        FeedbackTone::Warning
+    } else {
+        FeedbackTone::Positive
+    }
+}
+
+fn title_tone(result: &HtmlCheck) -> FeedbackTone {
+    if result.title.is_empty() {
+        FeedbackTone::Critical
+    } else if result.title.len() < 10 || result.title.len() > 65 {
+        FeedbackTone::Warning
+    } else {
+        FeedbackTone::Positive
+    }
+}
+
+fn h1_tone(count: usize) -> FeedbackTone {
+    match count {
+        1 => FeedbackTone::Positive,
+        0 => FeedbackTone::Critical,
+        _ => FeedbackTone::Warning,
+    }
+}
+
+fn feedback_tone(value: &str) -> FeedbackTone {
+    let value = value.to_lowercase();
+    if value.starts_with("missing")
+        || value.starts_with("no obvious")
+        || value.contains("missing alt")
+    {
+        FeedbackTone::Critical
+    } else if value.starts_with("no canonical")
+        || value.starts_with("title length")
+        || value.starts_with("multiple")
+        || value.contains("large")
+    {
+        FeedbackTone::Warning
+    } else {
+        FeedbackTone::Positive
+    }
 }
 
 #[cfg(test)]

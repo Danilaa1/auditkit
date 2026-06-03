@@ -31,9 +31,7 @@ ak report latest
 `ak new` creates a workspace in `audits/`. Fill in:
 
 - `findings.md`
-- `scorecard.md`
-- `pages/*.md`
-- `raw-notes.md`
+- `workspace.md`
 
 Then `ak report latest` creates:
 
