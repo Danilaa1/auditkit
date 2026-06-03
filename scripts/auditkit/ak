@@ -1,15 +1,18 @@
-#!/usr/bin/env zsh
-set -euo pipefail
+#!/usr/bin/env sh
+set -eu
 
 SOURCE="$0"
 while [ -L "$SOURCE" ]; do
   DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
   TARGET="$(readlink "$SOURCE")"
-  if [[ "$TARGET" == /* ]]; then
+  case "$TARGET" in
+  /*)
     SOURCE="$TARGET"
-  else
+    ;;
+  *)
     SOURCE="$DIR/$TARGET"
-  fi
+    ;;
+  esac
 done
 
 SCRIPT_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
