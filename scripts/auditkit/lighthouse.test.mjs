@@ -5,7 +5,7 @@ import {
   formatLighthouseReport,
   summarizeLighthouse,
 } from "./lighthouse-runner.mjs";
-import { shouldShowWelcome, welcomeMessage } from "./postinstall.mjs";
+import { shouldShowWelcome, showWelcome, welcomeMessage } from "./postinstall.mjs";
 
 const lhr = {
   finalDisplayedUrl: "https://example.com/",
@@ -83,8 +83,8 @@ test("postinstall welcome explains first commands", () => {
   const plainMessage = welcomeMessage({ NO_COLOR: "1" });
 
   assert.match(message, /Audit Kit/);
-  assert.match(message, /ak new/);
-  assert.match(message, /ak inspect latest/);
+  assert.match(message, /ak check/);
+  assert.match(message, /ak check --save/);
   assert.match(message, /\x1b\[/);
   assert.doesNotMatch(plainMessage, /\x1b\[/);
   assert.match(plainMessage, /Audit Kit/);
@@ -92,4 +92,15 @@ test("postinstall welcome explains first commands", () => {
   assert.equal(shouldShowWelcome({ CI: "true" }), false);
   assert.equal(shouldShowWelcome({ AUDITKIT_SKIP_WELCOME: "1" }), false);
   assert.equal(shouldShowWelcome({ npm_config_loglevel: "silent" }), false);
+});
+
+test("postinstall writes welcome to the provided stream", () => {
+  let output = "";
+  showWelcome({ write: (value) => (output += value) }, { NO_COLOR: "1" });
+  assert.match(output, /Audit Kit/);
+  assert.match(output, /ak check/);
+
+  output = "";
+  showWelcome({ write: (value) => (output += value) }, { CI: "true" });
+  assert.equal(output, "");
 });

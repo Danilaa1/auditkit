@@ -1,6 +1,6 @@
 {
   "name": "auditkit",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Local hybrid CLI for agency website audits.",
   "type": "module",
   "license": "MIT",

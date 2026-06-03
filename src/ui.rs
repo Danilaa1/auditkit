@@ -49,6 +49,15 @@ pub fn saved(path: impl std::fmt::Display) {
     println!("{} {}", "✓ saved".green().bold(), path);
 }
 
+pub fn step(number: usize, title: &str, detail: &str) {
+    println!(
+        "  {} {} {}",
+        format!("{number}.").cyan().bold(),
+        title.bold(),
+        detail.dimmed()
+    );
+}
+
 pub fn error(message: impl std::fmt::Display) {
     eprintln!("{} {}", "✕ error".red().bold(), message);
 }
@@ -145,13 +154,12 @@ pub fn help() {
         "{}",
         "├──────────────────────────────────────────────────────────────────────────┤".cyan()
     );
-    help_row("ak new", "create an audit workspace");
-    help_row("ak list", "show audit folders");
-    help_row("ak inspect latest", "run check, security, and Lighthouse");
-    help_row("ak report latest", "create final report and client email");
-    help_row("ak check <url>", "quick one-off website feedback");
-    help_row("ak security <url>", "quick one-off security check");
-    help_row("ak lighthouse <url>", "quick one-off Lighthouse check");
+    help_row("ak check", "guided website check");
+    help_row("ak check <url> --save ~/audits", "save files anywhere");
+    help_row("ak new", "create a full audit workspace");
+    help_row("ak inspect latest", "run every check for an audit");
+    help_row("ak report latest", "create report and email");
+    help_row("ak list", "show saved audit workspaces");
     println!(
         "{}",
         "╰──────────────────────────────────────────────────────────────────────────╯".cyan()
@@ -159,16 +167,20 @@ pub fn help() {
 }
 
 pub fn collect_audit_input() -> Result<NewAuditAnswers> {
-    if io::stdin().is_terminal() && io::stdout().is_terminal() {
+    if can_prompt() {
         run_form()
     } else {
         fallback_prompts()
     }
 }
 
+pub fn can_prompt() -> bool {
+    io::stdin().is_terminal() && io::stdout().is_terminal()
+}
+
 fn help_row(command: &str, description: &str) {
-    let command = format!("{command:<23}").bold();
-    let description = format!("{description:<45}").dimmed();
+    let command = format!("{command:<31}").bold();
+    let description = format!("{description:<39}").dimmed();
     println!("{}  {} {} {}", "│".cyan(), command, description, "│".cyan());
 }
 
@@ -192,6 +204,64 @@ fn prompt(label: &str) -> Result<String> {
     let mut value = String::new();
     io::stdin().read_line(&mut value)?;
     Ok(value.trim().to_string())
+}
+
+pub fn prompt_required(label: &str, placeholder: &str) -> Result<String> {
+    loop {
+        let suffix = if placeholder.is_empty() {
+            String::new()
+        } else {
+            format!(" {}", format!("({placeholder})").dimmed())
+        };
+        print!("{} {}{} ", "›".cyan().bold(), label.bold(), suffix);
+        io::stdout().flush()?;
+        let mut value = String::new();
+        io::stdin().read_line(&mut value)?;
+        let value = value.trim();
+        if !value.is_empty() {
+            return Ok(value.to_string());
+        }
+        println!("{}", "  Please enter a value.".yellow());
+    }
+}
+
+pub fn prompt_with_default(label: &str, default: &str) -> Result<String> {
+    print!(
+        "{} {} {} ",
+        "›".cyan().bold(),
+        label.bold(),
+        format!("({default})").dimmed()
+    );
+    io::stdout().flush()?;
+    let mut value = String::new();
+    io::stdin().read_line(&mut value)?;
+    let value = value.trim();
+    if value.is_empty() {
+        Ok(default.to_string())
+    } else {
+        Ok(value.to_string())
+    }
+}
+
+pub fn confirm(label: &str, default: bool) -> Result<bool> {
+    let hint = if default { "Y/n" } else { "y/N" };
+    loop {
+        print!(
+            "{} {} {} ",
+            "›".cyan().bold(),
+            label.bold(),
+            format!("({hint})").dimmed()
+        );
+        io::stdout().flush()?;
+        let mut value = String::new();
+        io::stdin().read_line(&mut value)?;
+        match value.trim().to_lowercase().as_str() {
+            "" => return Ok(default),
+            "y" | "yes" => return Ok(true),
+            "n" | "no" => return Ok(false),
+            _ => println!("{}", "  Type yes or no.".yellow()),
+        }
+    }
 }
 
 fn run_form() -> Result<NewAuditAnswers> {

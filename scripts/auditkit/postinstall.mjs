@@ -14,10 +14,10 @@ export function welcomeMessage(env = process.env) {
     divider(colors),
     line(`   ${paint("Try first", 97, colors)}                                                `, colors),
     line("                                                            ", colors),
-    commandLine("ak new", "create an audit workspace", colors),
-    commandLine("ak inspect latest", "run check, security, Lighthouse", colors),
-    commandLine("ak report latest", "generate report + client email", colors),
-    commandLine("ak list", "show saved audits", colors),
+    commandLine("ak check", "guided website check", colors),
+    commandLine("ak check --save", "choose a save folder", colors),
+    commandLine("ak new", "create a full audit", colors),
+    commandLine("ak inspect latest", "run every check", colors),
     line("                                                            ", colors),
   ];
 
@@ -31,12 +31,18 @@ export function welcomeMessage(env = process.env) {
   ].join("\n");
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href && shouldShowWelcome()) {
-  console.log(welcomeMessage());
+export function showWelcome(stream = process.stderr, env = process.env) {
+  if (shouldShowWelcome(env)) {
+    stream.write(`${welcomeMessage(env)}\n`);
+  }
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  showWelcome();
 }
 
 function commandLine(command, description, colors) {
-  return line(`   ${paint(command.padEnd(18), 36, colors)} ${paint(description.padEnd(34), 90, colors)}    `, colors);
+  return line(`   ${paint(command.padEnd(24).slice(0, 24), 36, colors)} ${paint(description.padEnd(28).slice(0, 28), 90, colors)}    `, colors);
 }
 
 function line(content, colors) {
