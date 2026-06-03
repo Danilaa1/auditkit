@@ -22,17 +22,15 @@ fn header_present(headers: &HeaderMap, name: &str) -> bool {
 
 fn cookies_have_security_flags(headers: &HeaderMap) -> bool {
     let cookies = headers.get_all("set-cookie");
-    let mut saw_cookie = false;
 
     for cookie in cookies.iter() {
-        saw_cookie = true;
         let value = cookie.to_str().unwrap_or("").to_lowercase();
         if !(value.contains("secure") && value.contains("httponly") && value.contains("samesite")) {
             return false;
         }
     }
 
-    !saw_cookie || true
+    true
 }
 
 pub fn analyze_security_headers(url: &str, headers: &HeaderMap) -> SecurityCheck {
@@ -114,14 +112,14 @@ pub fn check_url(input_url: &str) -> Result<SecurityCheck> {
         .header("accept", "text/html,application/xhtml+xml")
         .send()?;
     Ok(analyze_security_headers(
-        &response.url().to_string(),
+        response.url().as_ref(),
         response.headers(),
     ))
 }
 
 pub fn format_cli(result: &SecurityCheck) -> String {
     let mut output = format!(
-        "\n== Security Check ==\nURL: {}\nScore: {}/100 ({})\n\n== Signals ==\nHTTPS: {}\nHSTS: {}\nCSP: {}\nX-Frame-Options: {}\nReferrer-Policy: {}\nSecure cookies: {}\n\n== Feedback ==\n",
+        "\n╭─ Security Check\n│ URL      {}\n│ Score    {}/100 ({})\n╰─ Signals\n  • HTTPS              {}\n  • HSTS               {}\n  • CSP                {}\n  • X-Frame-Options    {}\n  • Referrer-Policy    {}\n  • Secure cookies     {}\n\nFeedback\n",
         result.url,
         result.score,
         score_status(result.score),

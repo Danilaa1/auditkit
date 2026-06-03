@@ -201,7 +201,7 @@ pub fn check_url(input_url: &str) -> Result<HtmlCheck> {
 
 pub fn format_cli(result: &HtmlCheck) -> String {
     let mut output = format!(
-        "\n== Audit Kit Check ==\nURL: {}\nScore: {}/100 ({})\n\n== Signals ==\nStatus: {}\nResponse: {} bytes\nTitle: {}\nMeta description: {}\nH1 count: {}\nImages missing alt: {}/{}\n\n== Feedback ==\n",
+        "\n╭─ Audit Kit Check\n│ URL      {}\n│ Score    {}/100 ({})\n╰─ Signals\n  • Status               {}\n  • Response             {} bytes\n  • Title                {}\n  • Meta description     {}\n  • H1 count             {}\n  • Images missing alt   {}/{}\n\nFeedback\n",
         result.url,
         result.score,
         score_status(result.score),

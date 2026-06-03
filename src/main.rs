@@ -1,5 +1,3 @@
-use std::io::{self, Write};
-
 use anyhow::{Context, Result};
 use auditkit::audit::{slugify, split_comma_list, AuditInput};
 use auditkit::html_check;
@@ -76,28 +74,19 @@ fn run() -> Result<()> {
 }
 
 fn new_audit(workspace: &Workspace) -> Result<()> {
-    ui::section("New Audit");
-    let client_name = prompt("Client name            ")?;
-    let url = prompt("Website URL            ")?;
-    let business_type = prompt("Business type          ")?;
-    let goal = prompt("Primary goal           ")?;
-    let target_customer = prompt("Target customer        ")?;
-    let conversion_action = prompt("Main conversion action ")?;
-    let pages = prompt("Pages, comma-separated ")?;
-    let known_concerns = prompt("Known concerns         ")?;
-    let competitors = prompt("Competitors            ")?;
+    let answers = ui::collect_audit_input()?;
 
     let audit = AuditInput {
-        slug: slugify(&client_name),
-        client_name,
-        url,
-        business_type,
-        goal,
-        target_customer,
-        conversion_action,
-        pages: split_comma_list(&pages),
-        known_concerns: split_comma_list(&known_concerns),
-        competitors: split_comma_list(&competitors),
+        slug: slugify(&answers.client_name),
+        client_name: answers.client_name,
+        url: answers.url,
+        business_type: answers.business_type,
+        goal: answers.goal,
+        target_customer: answers.target_customer,
+        conversion_action: answers.conversion_action,
+        pages: split_comma_list(&answers.pages),
+        known_concerns: split_comma_list(&answers.known_concerns),
+        competitors: split_comma_list(&answers.competitors),
         created_at: Local::now().format("%Y-%m-%d").to_string(),
     };
 
@@ -246,12 +235,4 @@ fn audit_website(workspace: &Workspace, folder: &str) -> Result<String> {
 
 fn looks_like_url(value: &str) -> bool {
     value.starts_with("http://") || value.starts_with("https://") || value.contains('.')
-}
-
-fn prompt(label: &str) -> Result<String> {
-    print!("{label}");
-    io::stdout().flush()?;
-    let mut value = String::new();
-    io::stdin().read_line(&mut value)?;
-    Ok(value.trim().to_string())
 }
