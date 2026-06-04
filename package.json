@@ -4,6 +4,10 @@
   "description": "Local hybrid CLI for agency website audits.",
   "type": "module",
   "license": "MIT",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/Danilaa1"
+  },
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/Danilaa1/auditkit.git"

@@ -2,6 +2,8 @@
 
 Fast local website audits for freelancers and agencies. Run HTML, security, Lighthouse, and report-generation workflows from one small CLI.
 
+[Sponsor Audit Kit](https://github.com/sponsors/Danilaa1)
+
 ```text
 ╭──────────────────────── Audit Kit ────────────────────────╮
 │ ak check        guided one-off website audit               │
