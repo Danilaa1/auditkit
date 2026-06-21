@@ -1,0 +1,23 @@
+{
+  "name": "promo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts AuditKitPromo out/auditkit-promo.mp4",
+    "render2": "remotion render src/index.ts AuditKitPromo2 out/auditkit-promo-2.mp4"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@remotion/cli": "^4.0.475",
+    "@types/react": "^19.2.17",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "remotion": "^4.0.475",
+    "typescript": "^6.0.3"
+  }
+}

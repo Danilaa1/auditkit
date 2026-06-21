@@ -22,7 +22,7 @@ bun add -g auditkit
 
 Requirements:
 
-- Rust + `cargo`
+- Rust + `cargo` (Audit Kit builds its native CLI on first run; install from [rustup.rs](https://rustup.rs))
 - Node.js 24+
 - Chrome, Chromium, Brave, Edge, or Helium for Lighthouse
 

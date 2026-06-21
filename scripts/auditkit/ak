@@ -37,6 +37,13 @@ if [ -z "${CI:-}" ] && [ -z "${AUDITKIT_SKIP_WELCOME:-}" ]; then
 fi
 
 if [ ! -x "$BINARY" ]; then
+  if ! command -v cargo >/dev/null 2>&1; then
+    printf '%s\n' \
+      'Audit Kit requires Rust and Cargo to build its CLI on first run.' \
+      'Install Rust from https://rustup.rs, reopen your terminal, then run Audit Kit again.' >&2
+    exit 1
+  fi
+
   cargo build --manifest-path "$ROOT_DIR/Cargo.toml" >/dev/null
 fi
 
