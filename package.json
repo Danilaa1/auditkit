@@ -1,6 +1,6 @@
 {
   "name": "auditkit",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Fast TypeScript CLI for clear, client-ready website audits.",
   "type": "module",
   "engines": {
