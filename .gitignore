@@ -4,9 +4,6 @@
 audits/*
 !audits/.gitkeep
 
-# Rust build output
-target/
-
 # Node dependencies
 node_modules/
 

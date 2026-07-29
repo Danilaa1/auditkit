@@ -1,67 +1,46 @@
 # Audit Kit
 
-Fast local website audits for freelancers and agencies. Run HTML, security, Lighthouse, and report-generation workflows from one small CLI.
+Fast, client-ready website audits from one TypeScript CLI.
 
 [Sponsor Audit Kit](https://github.com/sponsors/Danilaa1)
 
 ```text
-╭──────────────────────── Audit Kit ────────────────────────╮
-│ ak check        guided one-off website audit               │
-│ ak check --save choose where the audit files should go     │
-│ ak new          create a reusable client workspace          │
-╰────────────────────────────────────────────────────────────╯
+ak example.com
 ```
+
+That one command runs the HTML, security, performance, accessibility, best-practices, and SEO checks. Audit Kit shows a clear terminal summary and asks whether to save the reports.
 
 ## Install
 
 ```bash
 npm install -g auditkit
-# or
-bun add -g auditkit
 ```
 
 Requirements:
 
-- Rust + `cargo` (Audit Kit builds its native CLI on first run; install from [rustup.rs](https://rustup.rs))
-- Node.js 24+
+- Node.js 24 or newer
 - Chrome, Chromium, Brave, Edge, or Helium for Lighthouse
 
-## Quick start
+No Rust toolchain or build step is needed.
+
+## Common workflows
+
+Run a complete one-off audit:
 
 ```bash
-ak check
+ak example.com
+ak example.com --save ./example-audit
 ```
 
-Audit Kit asks for the website, runs the check, then asks where to save the markdown files.
-
-```text
-› Website URL (https://example.com) https://example.com
-✓ Fetching website and reading HTML
-› Save this check as markdown? (Y/n) y
-› Save folder (./auditkit-example-com) ~/audits/example
-✓ saved /Users/you/audits/example/automated-check.md
-```
-
-## Save anywhere
+Run one focused check:
 
 ```bash
-ak check https://example.com --save ~/audits/example
-ak security https://example.com --save ~/audits/example
-ak lighthouse https://example.com --save ~/audits/example
-ak inspect https://example.com --save ~/audits/example
+ak check example.com
+ak security example.com
+ak lighthouse example.com
 ```
 
-Saved files use simple names:
-
-```text
-~/audits/example/
-├─ automated-check.md
-├─ security-check.md
-├─ lighthouse.md
-└─ lighthouse.json
-```
-
-## Full client workflow
+Create a reusable client workspace:
 
 ```bash
 ak new
@@ -69,10 +48,11 @@ ak inspect latest
 ak report latest
 ```
 
-That creates an audit workspace, runs every check, then writes:
+Workspaces live in the current directory:
 
 ```text
-audits/<date-client>/
+audits/2026-07-29-example/
+├─ brief.md
 ├─ workspace.md
 ├─ findings.md
 ├─ final-report.md
@@ -82,29 +62,42 @@ audits/<date-client>/
 
 ## Commands
 
-| Command | Use |
+| Command | Result |
 | --- | --- |
-| `ak check` | guided HTML/SEO basics check |
-| `ak check <url> --save <folder>` | save check markdown to any folder |
-| `ak security <url> --save <folder>` | save security header audit |
-| `ak lighthouse <url> --save <folder>` | save Lighthouse markdown + JSON |
-| `ak inspect <url> --save <folder>` | run and save every automated check |
-| `ak new` | create a client audit workspace |
-| `ak inspect latest` | run all checks for the newest workspace |
-| `ak report latest` | create the final report and client email |
-| `ak list` | list audit workspaces |
+| `ak <url>` | Run the complete audit |
+| `ak check [url]` | Check HTML and SEO basics |
+| `ak security [url]` | Check security headers |
+| `ak lighthouse [url]` | Run Lighthouse |
+| `ak new` | Create a client workspace |
+| `ak inspect [latest\|workspace]` | Run every check and update a workspace |
+| `ak report [latest\|workspace]` | Build the report and client email |
+| `ak list` | List workspaces |
+
+Add `--save [folder]` to any audit command. Use an existing workspace name or `latest` to save into a workspace.
+
+```bash
+ak check example.com --save ./example-audit
+ak security example.com --save latest
+```
+
+Use `ak help <command>` for focused help.
 
 ## Browser override
 
 ```bash
-AUDITKIT_BROWSER_PATH="/path/to/browser" ak lighthouse https://example.com
+AUDITKIT_BROWSER_PATH="/path/to/browser" ak lighthouse example.com
 ```
+
+## Report settings
+
+Audit Kit reads `auditkit.config.json` from the directory where you run it. The included file shows the supported agency name, auditor name, and service pricing fields.
 
 ## Development
 
 ```bash
+npm install
 npm test
-cargo test
+node src/cli.ts --help
 ```
 
-Architecture notes live in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The CLI runs TypeScript directly on Node 24. There is no generated build folder. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the code map.

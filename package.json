@@ -1,8 +1,11 @@
 {
   "name": "auditkit",
   "version": "0.1.7",
-  "description": "Local hybrid CLI for agency website audits.",
+  "description": "Fast TypeScript CLI for clear, client-ready website audits.",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "license": "MIT",
   "funding": {
     "type": "github",
@@ -13,35 +16,35 @@
     "url": "git+ssh://git@github.com/Danilaa1/auditkit.git"
   },
   "files": [
-    "Cargo.lock",
-    "Cargo.toml",
     "LICENSE",
     "README.md",
     "auditkit.config.json",
     "audits/.gitkeep",
     "docs",
-    "scripts",
     "src"
   ],
   "bin": {
-    "auditkit": "scripts/auditkit/ak",
-    "ak": "scripts/auditkit/ak"
+    "auditkit": "src/cli.ts",
+    "ak": "src/cli.ts"
   },
   "scripts": {
-    "audit": "cargo run --quiet --",
-    "audit:new": "cargo run --quiet -- new",
-    "audit:list": "cargo run --quiet -- list",
-    "audit:check": "cargo run --quiet -- check",
-    "audit:report": "cargo run --quiet -- report",
-    "audit:security": "cargo run --quiet -- security",
-    "audit:lighthouse": "cargo run --quiet -- lighthouse",
-    "audit:inspect": "cargo run --quiet -- inspect",
-    "test": "npm run test:node && npm run test:rust",
-    "test:node": "node --test",
-    "test:rust": "cargo test"
+    "audit": "node src/cli.ts",
+    "audit:new": "node src/cli.ts new",
+    "audit:list": "node src/cli.ts list",
+    "audit:check": "node src/cli.ts check",
+    "audit:report": "node src/cli.ts report",
+    "audit:security": "node src/cli.ts security",
+    "audit:lighthouse": "node src/cli.ts lighthouse",
+    "audit:inspect": "node src/cli.ts inspect",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && node --test"
   },
   "dependencies": {
     "chrome-launcher": "^1.2.1",
     "lighthouse": "^13.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "^7.0.2"
   }
 }

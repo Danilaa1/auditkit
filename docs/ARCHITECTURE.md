@@ -1,44 +1,33 @@
 # Architecture
 
-Audit Kit is a hybrid CLI.
+Audit Kit is a TypeScript-only Node.js CLI.
 
-## Rust Core
+## Flow
 
-Rust owns the workflow that should be fast, predictable, and easy to inspect:
-
-- command routing
-- audit folder creation
-- HTML checks
-- security header checks
-- report and email generation
-- terminal output
-
-Rust source lives in `src/`.
-
-## Node Lighthouse Helper
-
-Lighthouse is a Node ecosystem tool, so Audit Kit keeps that part in Node:
-
-- `scripts/lighthouse.mjs`
-- `scripts/auditkit/lighthouse-runner.mjs`
-
-Rust calls the Node helper as a subprocess only when running:
-
-```bash
-ak lighthouse latest
-ak inspect latest
+```text
+terminal
+  -> src/cli.ts
+  -> website fetch
+  -> HTML + security analysis
+  -> Lighthouse
+  -> terminal summary or saved markdown/JSON
 ```
 
-## Module Map
+Node 24 runs the `.ts` files directly. TypeScript is a development-only dependency used for strict type checking; there is no compile step or generated runtime code.
 
-- `src/main.rs`: command router
-- `src/audit.rs`: audit input helpers
-- `src/workspace.rs`: paths, generated audit files, folder lookup
-- `src/templates.rs`: starter markdown files
-- `src/html_check.rs`: lightweight HTML feedback
-- `src/security.rs`: security header feedback
-- `src/report.rs`: final report and client email
-- `src/lighthouse.rs`: bridge to the Node Lighthouse helper
-- `src/ui.rs`: terminal output helpers
+## Source map
 
-The code is intentionally plain. Each file owns one small part of the workflow.
+- `src/cli.ts`: arguments, prompts, commands, save routing, and exit behavior
+- `src/checks.ts`: shared website fetch plus HTML and security checks
+- `src/lighthouse.ts`: browser discovery, Lighthouse execution, and summaries
+- `src/workspace.ts`: client folders, templates, and markdown updates
+- `src/report.ts`: final report, agency config, and client email
+- `src/ui.ts`: terminal hierarchy, color, prompts, progress, and errors
+
+The CLI uses Node built-ins for networking, files, paths, prompts, and tests. Lighthouse and Chrome Launcher remain the only runtime dependencies because those jobs belong to their ecosystem.
+
+## Workspace model
+
+`ak new`, `ak list`, `ak inspect latest`, and `ak report latest` use `./audits` relative to the directory where the command runs. This keeps client data beside the project instead of inside a global npm installation.
+
+Generated audit folders stay ignored by Git except for `audits/.gitkeep`.
